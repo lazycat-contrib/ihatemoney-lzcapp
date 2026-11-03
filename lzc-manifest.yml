@@ -1,0 +1,50 @@
+application:
+  subdomain: ihatemoney
+  multi_instance: false
+  # Participants join a shared project by link rather than by signing up (upstream:
+  # "no need to create accounts for people you invite"), so there is no login to
+  # expose; access stays behind the LazyCat entry.
+  upstreams:
+    - location: /
+      backend: http://ihatemoney:8000/
+
+services:
+  ihatemoney:
+    # upstream: ihatemoney/ihatemoney:7.2.1
+    image: docker.1ms.run/ihatemoney/ihatemoney:7.2.1
+    environment:
+      # Upstream's sample ships the literal "tralala"; sessions and CSRF tokens
+      # depend on it, so it is replaced with a per-install secret.
+      - SECRET_KEY={{ stable_secret "secret_key" }}
+      # Built-in SQLite keeps this a single container; the path lives on the
+      # mounted volume below.
+      - SQLALCHEMY_DATABASE_URI=sqlite:////database/ihatemoney.db
+      - SQLALCHEMY_TRACK_MODIFICATIONS=False
+      # The admin dashboard is a separate global password; left off so the app
+      # needs no shared credential at all.
+      - ACTIVATE_ADMIN_DASHBOARD=False
+      - ADMIN_PASSWORD=
+      - SHOW_ADMIN_EMAIL=False
+      - TZ=Asia/Shanghai
+    binds:
+      - /lzcapp/var/database:/database
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/ || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+usage: |
+  分账小助手（I Hate Money）是自托管的共享账单工具：和朋友、同事分摊开销，
+  记录每笔支出与参与人，自动算出谁该给谁多少钱。
+
+  - **不需要注册账号**：创建一个"项目"（比如一次旅行或一个合租账单），
+    把链接发给参与者，大家就能各自添加和查看支出。
+  - 因此它**没有登录页**，访问由懒猫入口负责鉴权——能访问入口的人就能创建/加入项目，
+    请只在自己信任的网络里开放。
+  - 数据保存在应用自己的持久化目录里（内置 SQLite），重启不会丢失，
+    不需要你另外准备数据库。
+  - 全局管理面板默认关闭（它需要一个所有实例共用的密码），如需启用请自行开启并设置密码。
+  - 未做真机验证：创建项目、添加支出、分摊计算、导出以及重启后数据留存
+    均未在设备上实测。
